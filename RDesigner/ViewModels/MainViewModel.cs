@@ -21,6 +21,7 @@ using Newtonsoft.Json;
 using MsBox.Avalonia.Enums;
 using MsBox.Avalonia;
 using Avalonia.Threading;
+using FastReport.Data;
 
 namespace RDesigner.ViewModels;
 
@@ -232,6 +233,13 @@ namespace RDesigner.ViewModels;
                     using (MemoryStream stream = new MemoryStream(SelectedReport.reportData))
                     {
                         Report report = new Report();
+
+                        PostgresDataConnection conn = new PostgresDataConnection();
+                        conn.ConnectionString = _dbService.GetConnectionString();
+                        conn.Name = "ConnectionPG";
+                        conn.CreateAllTables();
+                        report.Dictionary.Connections.Add(conn);
+
                         report.Load(stream);
                         // Отображение отчета
                         report.Show();
@@ -291,6 +299,13 @@ namespace RDesigner.ViewModels;
                 try
                 {                    
                     Report report = new Report();
+
+                    PostgresDataConnection conn = new PostgresDataConnection();
+                    conn.ConnectionString = _dbService.GetConnectionString();
+                    conn.Name = "ConnectionPG";
+                    conn.CreateAllTables();
+                    report.Dictionary.Connections.Add(conn);
+
                     report.Design();
                     report.Save(copyFilePath);
                     Log.Information($"Копия файла {reportName}.frx сохранена в каталог");
@@ -426,6 +441,61 @@ namespace RDesigner.ViewModels;
                     {
                         Report report = new Report();
                         report.Load(stream);
+                        
+                        PostgresDataConnection conn = new PostgresDataConnection();
+                        conn.ConnectionString = _dbService.GetConnectionString();
+                        conn.Name = "ConnectionPG";
+                        conn.CreateAllTables();
+                        report.Dictionary.Connections.Add(conn);
+
+                        DataConnectionBase oldConn = report.Dictionary.Connections[0];
+                        DataConnectionBase newConn = report.Dictionary.Connections[1];
+
+                        newConn.Tables.Clear();
+
+                        foreach (TableDataSource tds in oldConn.Tables.OfType<TableDataSource>().ToList())
+                        {
+                            TableDataSource newTds = new TableDataSource();
+                            newTds.SelectCommand = tds.SelectCommand;
+                            newTds.Enabled = tds.Enabled;
+                            newTds.TableName = tds.TableName;
+                            newTds.Alias = tds.Alias;
+                            newTds.Name = GetUniqueTableName(newConn, tds.Name ?? tds.TableName ?? "Table");
+                            newTds.Connection = newConn;
+                            foreach (var paramObj in tds.Parameters)
+                            {
+                                if (paramObj is CommandParameter param && param != null)
+                                {
+                                    CommandParameter newParam = new CommandParameter
+                                    {
+                                        Name = param.Name,
+                                        DataType = param.DataType,
+                                        Value = param.Value,
+                                        Expression = param.Expression,
+                                        DefaultValue = param.DefaultValue ?? "",
+                                    };
+                                    newTds.Parameters.Add(newParam);
+                                }
+                            }
+
+                            newConn.Tables.Add(newTds);
+                        }
+
+                        //newConn.CreateAllTables();
+                        if (oldConn != null)
+                        {
+                            // Очищаем таблицы старого подключения
+                            var tablesToRemove = oldConn.Tables.OfType<TableDataSource>().ToList();
+                            foreach (var tds in tablesToRemove)
+                            {
+                                oldConn.Tables.Remove(tds);
+                                tds.Connection = null;
+                            }
+
+                            report.Dictionary.Connections.Remove(oldConn);
+                        }
+                        newConn.CreateAllTables();
+                        //report.RegisterData();
                         // Отображение отчета
                         report.Design();
                         report.Save(copyFilePath);
@@ -491,6 +561,35 @@ namespace RDesigner.ViewModels;
                 }
 
             }
+        }
+
+
+        private static string GetUniqueTableName(DataConnectionBase connection, string baseName)
+        {
+            if (string.IsNullOrWhiteSpace(baseName))
+                baseName = "Table";
+            baseName = baseName.Replace(":", "_").Replace(".", "_").Replace(" ", "_");
+
+            string name = baseName;
+            int counter = 1;
+            while (ContainsTableName(connection, name))
+            {
+                name = $"{baseName}_{counter}";
+                counter++;
+            }
+
+            return name;
+        }
+
+
+        private static bool ContainsTableName(DataConnectionBase connection, string name)
+        {
+            foreach (TableDataSource table in connection.Tables.OfType<TableDataSource>())
+            {
+                if (string.Equals(table.Name, name, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         // Команда для кнопки "Удалить"
