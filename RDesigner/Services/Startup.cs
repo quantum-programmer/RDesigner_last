@@ -1,26 +1,34 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using RDesigner.Configuration;
 using RDesigner.Services;
 using RDesigner.ViewModels;
 using RDesigner.Views;
-using System;
 
 public class Startup
 {
-    public IServiceProvider ConfigureServices()
+    public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        var services = new ServiceCollection();
+        services.AddOptions<DatabaseOptions>()
+            .Bind(configuration.GetSection(DatabaseOptions.SectionName))
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Username), "Database:Username is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.Password), "Database:Password is required.")
+            .Validate(options => !string.IsNullOrWhiteSpace(options.DBName), "Database:DBName is required.")
+            .Validate(options => options.Port > 0, "Database:Port must be greater than zero.")
+            .ValidateOnStart();
 
-        // Регистрация сервисов
-        services.AddSingleton<IDBService, PostgresDBService>();        
+        services.AddSingleton(provider =>
+        {
+            var databaseOptions = provider.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            return Npgsql.NpgsqlDataSource.Create(databaseOptions.CreateConnectionString());
+        });
 
-        services.AddTransient<MainViewModel>(); // Регистрация MainViewModel
-        //services.AddTransient<MainView>();      // Регистрация MainView
-        services.AddTransient<MainView>(provider => new MainView(provider)); // Регистрация MainView с передачей IServiceProvider
+        services.AddSingleton<IDBService, PostgresDBService>();
 
-        // Регистрация главного окна
+        services.AddTransient<MainViewModel>();
+        services.AddTransient<MainView>(provider => new MainView(provider));
+
         services.AddTransient<MainWindow>();
-            
-
-        return services.BuildServiceProvider();
     }
 }

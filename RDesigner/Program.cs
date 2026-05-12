@@ -1,4 +1,6 @@
 ﻿using Avalonia;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 //using Serilog.Sinks.Console;
 using Serilog.Sinks.File;
@@ -34,19 +36,37 @@ namespace RDesigner
             {
                 Log.Information("Запуск приложения");
 
-                // Ваш код инициализации приложения
-                // Например, запуск Avalonia
+                App.Host = CreateHostBuilder(args).Build();
+                App.Host.Start();
                 BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 Log.Fatal(ex, "Приложение завершилось с ошибкой");
             }
             finally
             {
+                App.Host?.StopAsync().GetAwaiter().GetResult();
+                App.Host?.Dispose();
                 Log.CloseAndFlush(); // Закрыть и очистить логгер
             }
         }
+
+        private static IHostBuilder CreateHostBuilder(string[] args) =>
+            Host.CreateDefaultBuilder(args)
+                .ConfigureAppConfiguration((context, configuration) =>
+                {
+                    configuration.SetBasePath(AppContext.BaseDirectory);
+                    configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                    configuration.AddJsonFile(
+                        $"appsettings.{context.HostingEnvironment.EnvironmentName}.json",
+                        optional: true,
+                        reloadOnChange: true);
+                })
+                .ConfigureServices((context, services) =>
+                {
+                    new Startup().ConfigureServices(services, context.Configuration);
+                });
 
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()

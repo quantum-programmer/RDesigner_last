@@ -1,19 +1,20 @@
-using Avalonia;
+п»їusing Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
-using RDesigner.ViewModels;
 using RDesigner.Views;
 using System;
 using Microsoft.Extensions.DependencyInjection;
-
+using Microsoft.Extensions.Hosting;
 
 namespace RDesigner
 {
     public partial class App : Application
     {
-        public IServiceProvider _serviceProvider;
+        public static IHost? Host { get; set; }
+        public IServiceProvider _serviceProvider = null!;
+
         public override void Initialize()
         {
             AvaloniaXamlLoader.Load(this);
@@ -21,16 +22,16 @@ namespace RDesigner
 
         public override void OnFrameworkInitializationCompleted()
         {
-            var startup = new Startup();
-            _serviceProvider = startup.ConfigureServices();
+            _serviceProvider = Host?.Services
+                ?? throw new InvalidOperationException("Application host is not initialized.");
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                // Создание главного окна через DI контейнер
+                // РЎРѕР·РґР°РЅРёРµ РіР»Р°РІРЅРѕРіРѕ РѕРєРЅР° С‡РµСЂРµР· DI РєРѕРЅС‚РµР№РЅРµСЂ
                 //desktop.MainWindow = _serviceProvider.GetRequiredService<MainWindow>();
                 desktop.MainWindow = new MainWindow
                 {
-                    Content = _serviceProvider.GetRequiredService<MainView>()                   
+                    Content = _serviceProvider.GetRequiredService<MainView>()
                 };
             }
 

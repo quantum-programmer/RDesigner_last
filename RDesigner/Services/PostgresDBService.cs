@@ -1,73 +1,34 @@
 ﻿using System;
 using Npgsql;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Configuration;
+using Microsoft.Extensions.Options;
+using RDesigner.Configuration;
 using RDesigner.Models;
-using System.Runtime.InteropServices;
 using Serilog;
-using Avalonia;
-using FastReport;
-using Microsoft.Extensions.DependencyInjection;
-using RDesigner.Views;
-using Tmds.DBus.Protocol;
-using System.Reflection.Metadata.Ecma335;
 
 namespace RDesigner.Services 
 {
     public class PostgresDBService : IDBService
     {
 
-        private static string? connectionString;
-        private static string? _connectionString;
-        private NpgsqlDataSource dataSource;                          
+        private readonly NpgsqlDataSource dataSource;
+        private readonly string connectionString;
 
         public bool CheckConnection()
         {
             throw new NotImplementedException();
         }
 
-        public PostgresDBService()
+        public PostgresDBService(NpgsqlDataSource dataSource, IOptions<DatabaseOptions> databaseOptions)
         {
-            InitializeDataSource();
-        }
-
-        private void InitializeDataSource()
-        {
-            var app = Application.Current as App;            
-
-            if (ConfigurationManager.AppSettings[
-                    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "WindowsDBPort" : "LinuxDBPort"] is string portStr
-                && int.TryParse(portStr, out var port)
-                && ConfigurationManager.AppSettings[
-                    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "WindowsDBHost" : "LinuxDBHost"] is string host
-                && ConfigurationManager.AppSettings[
-                    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "WindowsDBase" : "LinuxDBase"] is string dBase
-                && ConfigurationManager.AppSettings[
-                    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "WindowsPass" : "LinuxPass"] is string password
-                && ConfigurationManager.AppSettings[
-                    RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "WindowsLogin" : "LinuxLogin"] is string login)
-            {
-                NpgsqlConnectionStringBuilder builder =
-                    new(connectionString)
-                    {
-                        Host = host,
-                        Database = dBase,
-                        Port = port,
-                        Username = login,
-                        Password = password
-                    };
-                dataSource = NpgsqlDataSource.Create(builder.ConnectionString);
-                _connectionString = builder.ConnectionString;
-                dataSource = NpgsqlDataSource.Create(_connectionString);                
-            }
+            this.dataSource = dataSource;
+            connectionString = databaseOptions.Value.CreateConnectionString();
         }
 
         public string GetConnectionString()
         {
-            return _connectionString ?? throw new InvalidOperationException("Data source is not initialized.");
+            return connectionString;
         }
 
         public async Task<ARMReport?> GetReportById(int id)
@@ -278,3 +239,5 @@ namespace RDesigner.Services
     }
 
 }
+
+
